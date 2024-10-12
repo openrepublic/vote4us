@@ -1,9 +1,9 @@
 {
     "name": "vote4us",
-    "version": "1.0.0",
+    "version": "1.0.4",
     "description": "Vote for us (for Antelope BPs)",
-    "main": "lib/index.js",
-    "types": "lib/index.d.ts",
+    "main": "lib/vote4us.js",
+    "types": "lib/vote4us.d.ts",
     "license": "MIT",
     "files": [
       "lib"
@@ -30,6 +30,7 @@
       "@wharfkit/wallet-plugin-cleos": "^1.1.1",
       "@wharfkit/wallet-plugin-privatekey": "^1.1.0",
       "@wharfkit/web-renderer": "^1.2.4",
+      "axios": "^1.7.4",
       "rxjs": "6.0.0",
       "typescript": "^5.0.0"
     }

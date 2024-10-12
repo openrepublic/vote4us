@@ -47,6 +47,12 @@ export interface Vote4UsState {
 export const emptyStatics: Statics = { rank: 0, votes: 0, totalVotes: 0, percentage: '', list: [] };
 // -----------------------------
 
+type Producer = {
+    is_active: number,
+    total_votes: string,
+    owner: string
+};
+
 export class Vote4Us {
     public config: Vote4UsConfig;
     public state: Vote4UsState = {
@@ -63,17 +69,17 @@ export class Vote4Us {
     };
     public change = new BehaviorSubject<Vote4UsState>(this.state);
 
-    private ui: WebRenderer;
-    private kit: SessionKit;
+    private ui: WebRenderer | null = null;
+    private kit: SessionKit | null = null;
 
     // DOM elements
-    private dialogElement: HTMLElement;
-    private notLoggedInContent: HTMLElement;
-    private errorContent: HTMLElement;
-    private voteContent: HTMLElement;
-    private alreadyVotedContent: HTMLElement;
-    private thanksContent: HTMLElement;
-    private addRecommendedBPsCheckbox: HTMLInputElement;
+    private dialogElement: HTMLElement | null = null;
+    private notLoggedInContent: HTMLElement | null = null;
+    private errorContent: HTMLElement | null = null;
+    private voteContent: HTMLElement | null = null;
+    private alreadyVotedContent: HTMLElement | null = null;
+    private thanksContent: HTMLElement | null = null;
+    private addRecommendedBPsCheckbox: HTMLInputElement | null = null;
 
     constructor(config: Vote4UsConfig) {
         this.config = config;
@@ -112,7 +118,17 @@ export class Vote4Us {
     // Subscribe to state changes to update the dialog UI
     subscribeToStateChangesToUpdateUI() {
         this.change.subscribe((state) => {
-            console.log('Vote4Us state:', state);
+            if (
+                !this.dialogElement ||
+                !this.notLoggedInContent ||
+                !this.errorContent ||
+                !this.voteContent ||
+                !this.alreadyVotedContent ||
+                !this.thanksContent
+            ) {
+                return;
+            }
+            
             // Show or hide the main dialog
             if (state.showDialog) {
                 // Show the dialog by removing the 'display: none' style and letting the CSS handle the rest
@@ -160,7 +176,7 @@ export class Vote4Us {
         this.appendDialogStyleElement();
 
         // Append the wharfkit dialog element
-        this.ui.appendDialogElement();
+        this.ui?.appendDialogElement();
     }
 
     appendDialogElement() {
@@ -522,6 +538,15 @@ export class Vote4Us {
 
     // Update the vote content based on the current state
     updateVoteContent(state: Vote4UsState) {
+        if (
+            !this.voteContent ||
+            !state.logged ||
+            !state.currentProducerStatics ||
+            !state.currentProducerStatics.list ||
+            !state.originalBPSelection
+        ) {
+            return;
+        }
 
         // Clear previous content
         this.voteContent.innerHTML = '';
@@ -549,7 +574,7 @@ export class Vote4Us {
             const grid = document.createElement('div');
             grid.className = 'vote4us-dialog__name-grid';
 
-            state.modifiedBPSelection.forEach((name, index) => {
+            state.modifiedBPSelection.forEach((name) => {
                 const cell = document.createElement('div');
                 cell.className = 'vote4us-dialog__name-cell';
 
@@ -621,7 +646,7 @@ export class Vote4Us {
             this.addRecommendedBPsCheckbox.type = 'checkbox';
             this.addRecommendedBPsCheckbox.checked = state.addRecommendedBPs;
             this.addRecommendedBPsCheckbox.addEventListener('change', () => {
-                this.state.addRecommendedBPs = this.addRecommendedBPsCheckbox.checked;
+                this.state.addRecommendedBPs = this.addRecommendedBPsCheckbox?.checked || false;
                 this.change.next(this.state);
             });
 
@@ -640,7 +665,7 @@ export class Vote4Us {
     // Reset all internal states of the class
     resetAll() {
         // Logout user from SessionKit
-        this.kit.logout();
+        this.kit?.logout();
 
         // Reset state
         this.state = {
@@ -670,7 +695,7 @@ export class Vote4Us {
             show_payer: false,
         };
 
-        let producers = [];
+        let producers:Producer[] = [];
         let attempts = 0;
         const maxAttempts = 5;
 
@@ -761,7 +786,7 @@ export class Vote4Us {
 
     // Replace a block producer in the modified selection list
     dropBP(bp: string) {
-        let producers = [...this.state.originalBPSelection] || [];
+        let producers = [...this.state.originalBPSelection];
         const index = producers.indexOf(bp);
         producers[index] = this.config.currentProducer;
         this.state.modifiedBPSelection = producers;
@@ -770,7 +795,6 @@ export class Vote4Us {
 
     // Show the voting dialog
     openDialog() {
-        console.log('openDialog()');
         this.state.showDialog = true;
         this.change.next(this.state);
     }
@@ -796,6 +820,9 @@ export class Vote4Us {
 
     // Open the login dialog and authenticate the user
     async openLoginDialog() {
+        if (!this.kit) {
+            return;
+        }
         try {
             const result = await this.kit.login();
             this.state.logged = {
@@ -865,7 +892,7 @@ export class Vote4Us {
         producers.sort();
 
         try {
-            const result = await this.state.logged.user.transact({
+            await this.state.logged.user.transact({
                 actions: [
                     {
                         account: 'eosio',
@@ -885,14 +912,12 @@ export class Vote4Us {
                 ],
             });
 
-            console.log('Vote successful:', result);
             this.state.thanks = true;
             this.change.next(this.state);
             this.startFetchingStatics();
         } catch (e: any) {
             await this.updateVotedProducers();
             if (e.message.includes('cancelled')) {
-                console.log('User cancelled the transaction');
                 return;
             } else {
                 console.error('Error casting vote:', e);
